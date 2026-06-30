@@ -48,12 +48,22 @@ import { CURSOR_THEMES, DEFAULT_CURSOR_THEME_ID } from "@/lib/cursor/cursorTheme
 import type { ExportFormat, ExportQuality, GifFrameRate, GifSizePreset } from "@/lib/exporter";
 import {
 	calculateEffectiveSourceDimensions,
+	calculateMp4ExportSettings,
+	estimateGifExportSizeBytes,
+	estimateMp4ExportSizeBytes,
+	formatEstimatedFileSize,
 	GIF_FRAME_RATES,
 	GIF_SIZE_PRESETS,
+	getEstimateLabelForMp4Quality,
 } from "@/lib/exporter";
 import { cn } from "@/lib/utils";
 import { resolveImageWallpaperUrl, WALLPAPER_PATHS } from "@/lib/wallpaper";
-import { type AspectRatio, isPortraitAspectRatio } from "@/utils/aspectRatioUtils";
+import {
+	type AspectRatio,
+	getAspectRatioValue,
+	getNativeAspectRatioValue,
+	isPortraitAspectRatio,
+} from "@/utils/aspectRatioUtils";
 import { getTestId } from "@/utils/getTestId";
 import ColorPicker from "../ui/color-picker";
 import { AnnotationSettingsPanel } from "./AnnotationSettingsPanel";
@@ -294,6 +304,7 @@ interface SettingsPanelProps {
 	gifSizePreset?: GifSizePreset;
 	onGifSizePresetChange?: (preset: GifSizePreset) => void;
 	gifOutputDimensions?: { width: number; height: number };
+	exportDurationSeconds?: number;
 	onExport?: () => void;
 	onExportPanelOpen?: () => void;
 	unsavedExport?: {
@@ -434,6 +445,7 @@ export function SettingsPanel({
 	gifSizePreset = DEFAULT_GIF_SETTINGS.sizePreset,
 	onGifSizePresetChange,
 	gifOutputDimensions = DEFAULT_GIF_SETTINGS.outputDimensions,
+	exportDurationSeconds = 0,
 	onExport,
 	onExportPanelOpen,
 	unsavedExport,
@@ -488,6 +500,60 @@ export function SettingsPanel({
 	const t = useScopedT("settings");
 	const [activePanelMode, setActivePanelMode] = useState<SettingsPanelMode>("background");
 	const sourceDimensions = formatSourceDimensions(videoElement, cropRegion);
+	const estimatedExportSize = useMemo(() => {
+		if (exportFormat === "gif") {
+			return {
+				size: formatEstimatedFileSize(
+					estimateGifExportSizeBytes({
+						durationSeconds: exportDurationSeconds,
+						width: gifOutputDimensions.width,
+						height: gifOutputDimensions.height,
+						frameRate: gifFrameRate,
+					}),
+				),
+				detail: `${gifFrameRate} fps`,
+			};
+		}
+
+		if (!sourceDimensions) {
+			return {
+				size: formatEstimatedFileSize(null),
+				detail: getEstimateLabelForMp4Quality(exportQuality),
+			};
+		}
+
+		const aspectRatioValue =
+			aspectRatio === "native" && videoElement
+				? getNativeAspectRatioValue(videoElement.videoWidth, videoElement.videoHeight, cropRegion)
+				: getAspectRatioValue(aspectRatio);
+		const settings = calculateMp4ExportSettings({
+			quality: exportQuality,
+			sourceWidth: sourceDimensions.width,
+			sourceHeight: sourceDimensions.height,
+			aspectRatioValue,
+		});
+
+		return {
+			size: formatEstimatedFileSize(
+				estimateMp4ExportSizeBytes({
+					durationSeconds: exportDurationSeconds,
+					videoBitrate: settings.bitrate,
+				}),
+			),
+			detail: `${settings.width}x${settings.height}, ${getEstimateLabelForMp4Quality(exportQuality)}`,
+		};
+	}, [
+		aspectRatio,
+		cropRegion,
+		exportDurationSeconds,
+		exportFormat,
+		exportQuality,
+		gifFrameRate,
+		gifOutputDimensions.height,
+		gifOutputDimensions.width,
+		sourceDimensions,
+		videoElement,
+	]);
 	// Resolved URLs are for DOM rendering only. We persist the canonical
 	// `/wallpapers/wallpaperN.jpg` form from WALLPAPER_PATHS, never the file:// URL.
 	const wallpaperPreviewUrls = useMemo(() => WALLPAPER_PATHS.map(resolveImageWallpaperUrl), []);
@@ -2159,6 +2225,17 @@ export function SettingsPanel({
 								</div>
 							</div>
 						)}
+
+						<div className="mb-3 flex items-center justify-between rounded-lg border border-white/[0.06] bg-white/[0.035] px-2.5 py-2 text-[11px]">
+							<span className="flex items-center gap-1.5 font-medium text-slate-400">
+								<FileDown className="h-3.5 w-3.5 text-[#34B27B]" />
+								Estimated size
+							</span>
+							<span className="text-right tabular-nums">
+								<span className="font-semibold text-slate-100">{estimatedExportSize.size}</span>
+								<span className="ml-1 text-slate-500">({estimatedExportSize.detail})</span>
+							</span>
+						</div>
 
 						{unsavedExport && (
 							<Button

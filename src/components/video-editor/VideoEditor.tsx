@@ -2788,6 +2788,7 @@ export default function VideoEditor() {
 													)
 												: getAspectRatioValue(aspectRatio),
 										)}
+										exportDurationSeconds={duration}
 										onExport={handleOpenExportDialog}
 										onExportPanelOpen={() => {
 											setSelectedZoomId(null);

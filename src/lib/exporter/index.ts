@@ -1,3 +1,9 @@
+export {
+	estimateGifExportSizeBytes,
+	estimateMp4ExportSizeBytes,
+	formatEstimatedFileSize,
+	getEstimateLabelForMp4Quality,
+} from "./exportSizeEstimate";
 export { FrameRenderer } from "./frameRenderer";
 export { calculateOutputDimensions, GifExporter } from "./gifExporter";
 export {
